@@ -1,0 +1,347 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+#Função Criada
+
+Norte = ['AC','AM','RR','RO','PA','AP','TO']
+Nordeste = ['AL','BA','CE','MA','PB','PE','PI','RN','SE']
+Centro_Oeste = ['GO','MT','DF','MS']
+Sudeste = ['ES','MG','SP','RJ']
+Sul = ['PR','RS','SC']
+
+def definir_regiao(uf):
+    if uf in Norte:
+        return 'Norte'
+    elif uf in Nordeste:
+        return 'Nordeste'
+    elif uf in Centro_Oeste:
+        return 'Centro-Oeste'
+    elif uf in Sudeste:
+        return 'Sudeste'
+    elif uf in Sul:
+        return 'Sul'
+    else:
+        return 'Outro'
+#------------------
+#Gráfico PIB por região
+
+# Carregar os arquivos CSV
+df_pib = pd.read_csv('br_ibge_pib_municipio.csv')
+df_dict = pd.read_csv('br_bd_diretorios_brasil_municipio.csv')
+
+# Fazer o merge das duas bases de dados utilizando 'id_municipio' como chave
+df_merged = pd.merge(df_pib, df_dict[['id_municipio', 'nome_regiao']], on='id_municipio', how='left')
+
+# Verificar o resultado
+df_merged
+
+#removendo colunas desnecessárias
+df_merged = df_merged.drop(columns=['impostos_liquidos', 'va_agropecuaria', 'va_industria', 'va_servicos', 'va_adespss'])
+
+
+# Agrupar os dados por 'nome_regiao' e 'ano', calculando a média de 'pib' e 'va'
+df_grouped_media = df_merged.groupby(['nome_regiao', 'ano'], as_index=False).agg({
+    'pib': 'mean',
+    'va': 'mean'
+})
+
+df_grouped_soma = df_merged.groupby(['nome_regiao', 'ano'], as_index=False).agg({
+    'pib': 'sum',
+    'va': 'sum'
+})
+
+# Exibir o DataFrame agrupado para conferência
+df_pib
+
+# Ajustar o tamanho dos gráficos
+plt.figure(figsize=(12, 10))
+
+# Gráfico 1: PIB ao longo dos anos por região em média
+plt.subplot(2, 1, 1)
+sns.lineplot(data=df_grouped_media, x='ano', y='pib', hue='nome_regiao', marker='o', palette='Set1')
+plt.title('PIB por Região ao Longo dos Anos em média')
+plt.ylabel('PIB (em milhões)')
+plt.xlabel('Ano')
+
+# Gráfico 2: PIB ao longo dos anos por região em tamanho absoluto
+plt.subplot(2, 1, 2)
+sns.lineplot(data=df_grouped_soma, x='ano', y='pib', hue='nome_regiao', marker='o', palette='Set1')
+plt.title('PIB por Região ao Longo dos Anos em Tamanho Absoluto')
+plt.ylabel('PIB (em milhões)')
+plt.xlabel('Ano')
+
+# Ajustar layout para melhor visualização
+plt.tight_layout()
+
+# Mostrar os gráficos
+plt.show()
+#------------------
+#Gráfico população
+
+# Carregar o arquivo CSV
+df = pd.read_csv('MobiliDADOS _ População.xlsx - População_municípios.csv')
+
+df = df.drop(columns=['CD_UF','COD_MUN6','MUNICIPIO','CAPITAL','REGIAO METROPOLITANA'])
+
+
+# Aplicar a função para criar a coluna de região
+df['regiao'] = df['UF'].apply(definir_regiao)
+
+# Transformar os dados de população por ano em um formato longo (melt)
+df_melted = df.melt(id_vars=['UF', 'regiao'],
+                    value_vars=[f'Pop_{year}' for year in range(2000, 2023)],
+                    var_name='ano',
+                    value_name='populacao')
+
+# Limpar a coluna 'ano' para que contenha apenas o número do ano
+df_melted['ano'] = df_melted['ano'].str.extract('(\d+)').astype(int)
+
+# Agrupar por 'regiao' e 'ano', somando a população
+df_grouped = df_melted.groupby(['regiao', 'ano'], as_index=False)['populacao'].sum()
+
+# Ajustar o tamanho dos gráficos
+plt.figure(figsize=(12, 6))
+
+# Criar o gráfico da população por região ao longo dos anos
+sns.lineplot(data=df_grouped, x='ano', y='populacao', hue='regiao', marker='o', palette='Set1')
+plt.title('População por Região ao Longo dos Anos')
+plt.ylabel('População Total')
+plt.xlabel('Ano')
+
+# Ajustar layout e exibir o gráfico
+plt.tight_layout()
+plt.show()
+#------------------
+#Gráfico renda x tarifa
+
+# Carregar o arquivo CSV
+df = pd.read_csv('br_mobilidados_indicadores_comprometimento_renda_tarifa_transp_publico.csv')
+df = df.drop(columns=['id_municipio'])
+
+df['sigla_uf'] = df['sigla_uf'].apply(definir_regiao)
+
+# Selecionar apenas as colunas de interesse (supondo que 'tarifas', 'comprometimento_salario_minimo' e 'comprometimento_renda_domesticas_negras' sejam numéricas)
+colunas_interesse = ['ano', 'sigla_uf', 'tarifas', 'comprometimento_salario_minimo', 'comprometimento_renda_domesticas_negras']
+
+# Agrupar por 'regiao' e 'ano', calculando a média das variáveis de interesse
+df_grouped = df[colunas_interesse].groupby(['sigla_uf', 'ano']).mean().reset_index()
+
+# Ajustar o tamanho dos gráficos
+plt.figure(figsize=(10, 8))
+
+# Gráfico 1: Comparar tarifas por região e ano
+plt.subplot(3, 1, 1)
+sns.lineplot(data=df_grouped, x='ano', y='tarifas', hue='sigla_uf', marker='o')
+plt.title('Comparação de Tarifas por Região e Ano')
+plt.ylabel('Tarifas')
+
+# Gráfico 2: Comparar comprometimento do salário mínimo por região e ano
+plt.subplot(3, 1, 2)
+sns.lineplot(data=df_grouped, x='ano', y='comprometimento_salario_minimo', hue='sigla_uf', marker='o')
+plt.title('Comprometimento do Salário Mínimo por Região e Ano')
+plt.ylabel('Comprometimento (Salário Mínimo)')
+
+# Gráfico 3: Comparar comprometimento de renda de domésticas negras por região e ano
+plt.subplot(3, 1, 3)
+sns.lineplot(data=df_grouped, x='ano', y='comprometimento_renda_domesticas_negras', hue='sigla_uf', marker='o')
+plt.title('Comprometimento de Renda de Domésticas Negras por Região e Ano')
+plt.ylabel('Comprometimento (Domésticas Negras)')
+plt.xlabel('Ano')
+
+# Ajustar layout para melhor visualização
+plt.tight_layout()
+
+# Mostrar os gráficos
+plt.show()
+#------------------
+#Gráfico taxa_motorização
+
+# Carregar o arquivo CSV
+df = pd.read_csv('br_mobilidados_indicadores_taxa_motorizacao.csv')
+df = df.drop(columns = ['id_municipio'])
+# Aplicar a função para criar a coluna de região
+df['regiao'] = df['sigla_uf'].apply(definir_regiao)
+
+# Agrupar por 'regiao' e 'ano', calculando a média da taxa de motorização
+df_grouped = df.groupby(['regiao', 'ano'], as_index=False)['taxa_motorizacao'].mean()
+
+# Ajustar o tamanho dos gráficos
+plt.figure(figsize=(10, 6))
+
+# Gráfico: Comparar taxa de motorização por região e ano
+sns.lineplot(data=df_grouped, x='ano', y='taxa_motorizacao', hue='regiao', marker='o', palette='Set1')
+plt.title('Taxa de Motorização por Região ao Longo dos Anos')
+plt.ylabel('Taxa de Motorização')
+plt.xlabel('Ano')
+
+# Ajustar layout para melhor visualização
+plt.tight_layout()
+
+# Mostrar o gráfico
+plt.show()
+
+#Veículos para cada mil habitantes, quanto maior pior, menos transporte publico
+#------------------
+#gráfico tempo deslocamento
+
+# Carregar o arquivo CSV
+df = pd.read_csv('br_mobilidados_indicadores_tempo_deslocamento_casa_trabalho.csv')
+df = df.drop(columns = ['id_municipio'])
+
+# Aplicar a função para criar a coluna de região
+df['regiao'] = df['sigla_uf'].apply(definir_regiao)
+
+# Agrupar por 'regiao' e calcular as médias das variáveis de interesse
+df_grouped = df.groupby('regiao', as_index=False).agg({
+    'tempo_medio_deslocamento': 'mean',
+    'prop_deslocamento_acima_1_hora': 'mean'
+})
+
+# Ajustar o tamanho dos gráficos
+plt.figure(figsize=(8, 6))
+
+# Gráfico 1: Tempo médio de deslocamento por região
+plt.subplot(2, 1, 1)
+sns.barplot(data=df_grouped, x='regiao', y='tempo_medio_deslocamento', palette='Set1')
+plt.title('Tempo Médio de Deslocamento por Região')
+plt.ylabel('Tempo Médio de Deslocamento (minutos)')
+plt.xlabel('Região')
+
+# Gráfico 2: Proporção de deslocamento acima de 1 hora por região
+plt.subplot(2, 1, 2)
+sns.barplot(data=df_grouped, x='regiao', y='prop_deslocamento_acima_1_hora', palette='Set1')
+plt.title('Proporção de Deslocamento Acima de 1 Hora por Região')
+plt.ylabel('Proporção (%)')
+plt.xlabel('Região')
+
+# Ajustar layout para melhor visualização
+plt.tight_layout()
+
+# Mostrar os gráficos
+plt.show()
+#------------------
+#gráfico veículos por município
+
+# Carregar o arquivo CSV
+df = pd.read_csv('MI_veiculos_municipio.csv')
+
+# Remover as colunas 'id_municipio' e 'id_municipio_nome'
+df.drop(columns=['id_municipio', 'id_municipio_nome'], inplace=True)
+
+df['regiao'] = df['sigla_uf'].apply(definir_regiao)
+
+# Criar uma lista de tipos de veículos para plotar
+tipos_veiculos = ['bonde', 'automovel', 'motocicleta', 'onibus', 'caminhonete']
+
+# Ajustar o tamanho da figura
+plt.figure(figsize=(15, 25))
+
+# Loop para criar gráficos para cada tipo de veículo
+for i, tipo in enumerate(tipos_veiculos, start=1):
+    # Filtrar os dados para o tipo de veículo específico
+    df_tipo = df[df['tipo_veiculo'] == tipo]
+
+    # Agrupar os dados por ano e região, somando a quantidade
+    df_grouped = df_tipo.groupby(['ano', 'regiao'], as_index=False)['quantidade'].sum()
+
+    # Criar gráfico
+    plt.subplot(len(tipos_veiculos), 1, i)
+    sns.lineplot(data=df_grouped, x='ano', y='quantidade', hue='regiao', marker='o')
+    plt.title(f'Quantidade de {tipo} ao Longo dos Anos por Região')
+    plt.ylabel('Quantidade')
+    plt.xlabel('Ano')
+
+# Ajustar o layout para melhorar a visualização
+plt.tight_layout()
+
+# Mostrar os gráficos
+plt.show()
+#------------------
+#Gráfico IPEA Estatísticas
+
+# Carregar os arquivos CSV
+df_Ipea = pd.read_csv('Ipea_estatísticas_2019.csv')
+df_dict = pd.read_csv('br_bd_diretorios_brasil_municipio.csv')
+
+# Fazer o merge das duas bases de dados utilizando 'id_municipio' como chave
+df_merged = pd.merge(df_Ipea, df_dict[['id_municipio', 'nome_regiao']], on='id_municipio', how='left')
+
+# Verificar o resultado
+df_merged.drop(columns=['quantidade_estabelecimentos_saude_alta_coplexidade', 'id_municipio','id_municipio_nome','quantidade_estabelecimentos_ensino_fundamental','quantidade_pessoas_negras','quantidade_pessoas_indigenas','decil_de_renda','quantidade_estabelecimentos_saude_baixa_complexidade','id_grid_h3','quantidade_estabelecimentos_ensino_infantil','renda_domiciliar_pc','quantidade_pessoas_amarelas','geometria','quantidade_pessoas_brancas','quantidade_estabelecimentos_ensino_medio','quantidade_estabelecimentos_saude_media_coplexidade'], inplace=True)
+
+# Agrupar os dados por 'nome_regiao', somando os valores de cada métrica
+df_grouped = df_merged.groupby('nome_regiao', as_index=False).agg({
+    'quantidade_estabelecimentos_saude': 'sum',
+    'quantidade_estabelecimentos_ensino': 'sum',
+    'quantidade_pessoas': 'sum'
+})
+
+# Exibir o DataFrame agrupado para conferência
+print(df_grouped)
+
+# Ajustar o tamanho da figura
+plt.figure(figsize=(12, 15))
+
+# Gráfico 1: Quantidade de Estabelecimentos de Saúde por Região
+plt.subplot(3, 1, 1)
+sns.barplot(data=df_grouped, x='nome_regiao', y='quantidade_estabelecimentos_saude', palette='Set2')
+plt.title('Quantidade de Estabelecimentos de Saúde por Região')
+plt.ylabel('Quantidade de Estabelecimentos de Saúde')
+
+# Gráfico 2: Quantidade de Estabelecimentos de Ensino por Região
+plt.subplot(3, 1, 2)
+sns.barplot(data=df_grouped, x='nome_regiao', y='quantidade_estabelecimentos_ensino', palette='Set2')
+plt.title('Quantidade de Estabelecimentos de Ensino por Região')
+plt.ylabel('Quantidade de Estabelecimentos de Ensino')
+
+# Gráfico 3: Quantidade de Pessoas por Região
+plt.subplot(3, 1, 3)
+sns.barplot(data=df_grouped, x='nome_regiao', y='quantidade_pessoas', palette='Set2')
+plt.title('Quantidade de Pessoas por Região')
+plt.ylabel('Quantidade de Pessoas')
+
+# Ajustar o layout para melhorar a visualização
+plt.tight_layout()
+
+# Mostrar os gráficos
+plt.show()
+#------------------
+#Gráfico infra urbana
+
+# Carregar o arquivo CSV
+df = pd.read_csv('br_mobilidados_indicadores_proporcao_domicilios_infra_urbana.csv')
+df.drop(columns=['id_municipio'], inplace=True)
+
+# Aplicar a função para criar a coluna de região
+df['regiao'] = df['sigla_uf'].apply(definir_regiao)
+
+# Agrupar por 'regiao' e calcular as médias das proporções
+df_grouped = df.groupby('regiao', as_index=False).agg({
+    'prop_calcadas': 'mean',
+    'prop_rampas': 'mean'
+})
+
+# Ajustar o tamanho dos gráficos
+plt.figure(figsize=(8, 6))
+
+# Gráfico 1: Proporção de calçadas por região
+plt.subplot(2, 1, 1)
+sns.barplot(data=df_grouped, x='regiao', y='prop_calcadas', palette='Set2')
+plt.title('Proporção de Calçadas por Região')
+plt.ylabel('Proporção de Calçadas (%)')
+plt.xlabel('Região')
+
+# Gráfico 2: Proporção de rampas por região
+plt.subplot(2, 1, 2)
+sns.barplot(data=df_grouped, x='regiao', y='prop_rampas', palette='Set2')
+plt.title('Proporção de Rampas por Região')
+plt.ylabel('Proporção de Rampas (%)')
+plt.xlabel('Região')
+
+# Ajustar layout para melhor visualização
+plt.tight_layout()
+
+# Mostrar os gráficos
+plt.show()
+#------------------
